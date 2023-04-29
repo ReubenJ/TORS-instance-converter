@@ -1,0 +1,6 @@
+[submodule "Shuntyard-Instance-Generator"]
+	path = Shuntyard-Instance-Generator
+	url = git@github.com:ReubenJ/Shuntyard-Instance-Generator.git
+[submodule "cTORS"]
+	path = cTORS
+	url = git@github.com:ReubenJ/cTORS.git
