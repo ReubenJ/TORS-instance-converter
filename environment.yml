@@ -1,0 +1,10 @@
+name: tors-instance-generator
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python
+  - snakemake
+  - ruff
+  - protobuf
+  - conda-lock

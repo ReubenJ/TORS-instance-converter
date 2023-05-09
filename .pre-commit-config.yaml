@@ -1,0 +1,14 @@
+repos:
+  - repo: https://github.com/snakemake/snakefmt
+    rev: v0.8.4
+    hooks:
+      - id: snakefmt
+  - repo: local
+    hooks:
+      - id: conda-lock
+        name: conda-lock
+        files: environment.yml
+        entry: conda-lock lock --check-input-hash --mamba -f
+        language: python
+        additional_dependencies: ["conda-lock==1.4.0"]
+        verbose: true
