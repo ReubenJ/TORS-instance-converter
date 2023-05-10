@@ -1,0 +1,24 @@
+include: "rules/setup.smk"
+
+
+rule all:
+    input:
+        # only request one, since they're all generated at the same time
+        COMPILED_PROTOS[0],
+        # Same with the instances, one script generates all of them
+        # this isn't really how snakemake is meant to be used, but these both just get us
+        # to a starting point where we can start using snakemake for real
+        SCEN_FILE,
+        "mapf_protobuf_format_instances/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen.pb",
+
+
+rule mapf_to_protobuf:
+    input:
+        scenario_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r{scenario}.scen",
+        graph_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
+    params:
+        graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
+    output:
+        scenario_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r{scenario}.scen.pb",
+    shell:
+        "python workflow/scripts/mapf_to_protobuf.py {input.scenario_file} {input.graph_file} {output.scenario_output_file} {params.graph_output_file}"

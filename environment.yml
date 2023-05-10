@@ -7,4 +7,5 @@ dependencies:
   - snakemake
   - ruff
   - protobuf
-  - conda-lock
+  - snakedeploy
+  - graphviz
