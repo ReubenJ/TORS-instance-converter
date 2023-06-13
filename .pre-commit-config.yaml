@@ -8,7 +8,7 @@ repos:
       - id: conda-lock
         name: conda-lock
         files: environment.yml
-        entry: conda-lock lock --check-input-hash --mamba -f
+        entry: conda-lock lock --check-input-hash -p linux-64 -p osx-64 --mamba -f
         language: python
         additional_dependencies: ["conda-lock==1.4.0"]
         verbose: true

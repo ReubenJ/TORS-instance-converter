@@ -4,9 +4,15 @@ channels:
   - bioconda
 dependencies:
   - python
+  - pip
+  - pip:
+    - wonderwords
   - snakemake
   - ruff
   - protobuf
   - snakedeploy
   - graphviz
   - networkx
+  - ipykernel
+  - matplotlib
+  - scipy

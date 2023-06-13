@@ -10,8 +10,9 @@ rule all:
         # to a starting point where we can start using snakemake as it was intended
         SCEN_FILE,
         # ALL_PB_GRAPH_FILES,
-        # ALL_JSON_LOCATION_FILES,
-        "tors_instances/1b/carrousel_arrival_hard_0t_50n_3b_20g_0.0r_location.json",
+        ALL_PB_SCEN_FILES[0:100],
+        [file for file in ALL_JSON_LOCATION_FILES if "grid" not in file],
+        # "tors_instances/1b/carrousel_arrival_hard_0t_50n_3b_20g_0.0r_location.json",
 
 
 rule mapf_to_protobuf:
@@ -45,3 +46,9 @@ rule protobuf_to_tors_location:
         location_file="tors_instances/{exp}/{graph}.0r_location.json",
     shell:
         "python {input.script} {input.location_file} {output.location_file} --length {params.length}"
+
+TO_COMBINE = [
+
+]
+
+rule merge_arrivals_and_departures:
