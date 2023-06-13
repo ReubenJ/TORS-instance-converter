@@ -9,7 +9,7 @@ rule all:
         # this isn't really how snakemake is meant to be used, but these both just get us
         # to a starting point where we can start using snakemake for real
         SCEN_FILE,
-        "mapf_protobuf_format_instances/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen.pb",
+        ALL_PB_SCEN_FILES,
 
 
 rule mapf_to_protobuf:
@@ -22,3 +22,13 @@ rule mapf_to_protobuf:
         scenario_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r{scenario}.scen.pb",
     shell:
         "python workflow/scripts/mapf_to_protobuf.py {input.scenario_file} {input.graph_file} {output.scenario_output_file} {params.graph_output_file}"
+
+
+rule protobuf_to_tors_location:
+    input:
+        scenario_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r{scenario}.scen.pb",
+    output:
+        scenario_file="tors_instances/{exp}/{layout}/{graph}.0r{scenario}/scenario.json",
+        location_file="tors_instances/{exp}/{layout}/{graph}.0r{scenario}/location.json",
+    shell:
+        "python workflow/scripts/protobuf_to_tors.py {input.scenario_file}"

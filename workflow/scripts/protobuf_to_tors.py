@@ -6,8 +6,10 @@ from google.protobuf.json_format import MessageToJson
 
 from protos.scenario_mapf_pb2 import Scenario as MAPFScenario
 from protos.Location_pb2 import Location, TrackPart, TrackPartType
-from protos.scenario_pb2 import Scenario, Train, TrainUnit
+from protos.Scenario_pb2 import Scenario, Train, TrainUnit
 from protos.TrainUnitTypes_pb2 import TrainUnitType
+
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +71,26 @@ def main():
     parser.add_argument(
         "--max-carriages",
         help="The maximum number of carriages per train.",
-        default=5,
+        default=3,
         type=int,
     )
     parser.add_argument(
-        "--time-between-arrivals", help="The time between arrivals.", default=100, type=int 
+        "--time-between-arrivals",
+        help="The time between arrivals.",
+        default=100,
+        type=int,
+    )
+    parser.add_argument(
+        "--time-between-departures",
+        help="The time between departures.",
+        default=100,
+        type=int,
+    )
+    parser.add_argument(
+        "--output-directory",
+        help="The directory to output the files to.",
+        default=Path("."),
+        type=Path,
     )
     args = parser.parse_args()
 
@@ -114,10 +131,15 @@ def main():
                 track.type = TrackPartType.Switch
 
     # write the location to a file as json
-    with open("location.json", "w") as location_file:
-        location_file.write(MessageToJson(tors_location))
+    with open(args.output_directory / "location.json", "w") as location_file:
+        location_file.write(
+            MessageToJson(tors_location, including_default_value_fields=True)
+        )
 
-    tors_scenario = Scenario(startTime=0, endTime=3000, )
+    tors_scenario = Scenario(
+        startTime=0,
+        endTime=3000,
+    )
 
     # Get types of agents
     agent_types = set(agent.type for agent in mapf_scenario.agents)
@@ -152,9 +174,11 @@ def main():
         # first create a Train object for each agent
         new_train = Train(
             id=agent.name,
-            time=i*args.time_between_arrivals,
+            time=i * args.time_between_arrivals,
             members=[new_train_unit],
         )
+        # add the train to the incoming list
+        tors_scenario.incoming.append(new_train)
     print(tors_location.trackParts)
 
 
