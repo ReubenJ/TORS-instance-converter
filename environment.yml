@@ -16,3 +16,4 @@ dependencies:
   - ipykernel
   - matplotlib
   - scipy
+  - virtualenv
