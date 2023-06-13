@@ -7,9 +7,11 @@ rule all:
         COMPILED_PROTOS[0],
         # Same with the instances, one script generates all of them
         # this isn't really how snakemake is meant to be used, but these both just get us
-        # to a starting point where we can start using snakemake for real
+        # to a starting point where we can start using snakemake as it was intended
         SCEN_FILE,
-        ALL_PB_SCEN_FILES,
+        # ALL_PB_GRAPH_FILES,
+        # ALL_JSON_LOCATION_FILES,
+        "tors_instances/1b/carrousel_arrival_hard_0t_50n_3b_20g_0.0r_location.json",
 
 
 rule mapf_to_protobuf:
@@ -24,11 +26,22 @@ rule mapf_to_protobuf:
         "python workflow/scripts/mapf_to_protobuf.py {input.scenario_file} {input.graph_file} {output.scenario_output_file} {params.graph_output_file}"
 
 
+rule mapf_to_protobuf_graph:
+    input:
+        graph_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
+    output:
+        graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
+    shell:
+        "python workflow/scripts/mapf_to_protobuf_graph.py {input.graph_file} {output.graph_output_file}"
+
+
 rule protobuf_to_tors_location:
     input:
-        scenario_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r{scenario}.scen.pb",
+        location_file="mapf_protobuf_format_instances/{exp}/{graph}.0r/{graph}.0r.graph.pb",
+        script="workflow/scripts/protobuf_to_tors_location.py",
+    params:
+        length=100,
     output:
-        scenario_file="tors_instances/{exp}/{layout}/{graph}.0r{scenario}/scenario.json",
-        location_file="tors_instances/{exp}/{layout}/{graph}.0r{scenario}/location.json",
+        location_file="tors_instances/{exp}/{graph}.0r_location.json",
     shell:
-        "python workflow/scripts/protobuf_to_tors.py {input.scenario_file}"
+        "python {input.script} {input.location_file} {output.location_file} --length {params.length}"

@@ -29,7 +29,12 @@ ALL_PB_GRAPH_FILES = expand(
     layout=ALL_GRAPH_FILES.layout,
     graph_name=ALL_GRAPH_FILES.graph_name,
 )
-print(ALL_GRAPH_FILES)
+ALL_JSON_LOCATION_FILES = expand(
+    "tors_instances/{exp}/{graph_name}_location.json",
+    zip,
+    exp=ALL_GRAPH_FILES.exp,
+    graph_name=ALL_GRAPH_FILES.graph_name,
+)
 
 
 rule copy_protos:
@@ -60,6 +65,8 @@ EXPERIMENTS, LAYOUTS, _, EXTS = glob_wildcards(
 checkpoint create_instances:
     conda:
         "../../Shuntyard-Instance-Generator/environment.yml"
+    input:
+        "Shuntyard-Instance-Generator/settings.ini",
     output:
         "Shuntyard-Instance-Generator/quasi_real_instances/exp/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen",
     shell:
