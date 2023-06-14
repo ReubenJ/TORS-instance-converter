@@ -5,9 +5,11 @@ channels:
 dependencies:
   - python
   - pip
+  - git
+  - cxx-compiler
   - pip:
     - wonderwords
-  - snakemake
+    - git+https://github.com/ReubenJ/snakemake.git@fix/long-slurm-account-names
   - ruff
   - protobuf
   - snakedeploy
