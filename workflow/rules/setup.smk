@@ -58,7 +58,7 @@ rule generate_python_protobuf:
 
 
 EXPERIMENTS, LAYOUTS, _, EXTS = glob_wildcards(
-    "ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{scenario_or_graphname}.{ext}"
+    "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{scenario_or_graphname}.{ext}"
 )
 
 
@@ -70,4 +70,4 @@ checkpoint create_instances:
     output:
         "Shuntyard-Instance-Generator/quasi_real_instances/exp/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen",
     shell:
-        "cd ShuntYard-Instance-Generator && python main.py"
+        "cd Shuntyard-Instance-Generator && python main.py"

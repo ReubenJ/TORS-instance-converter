@@ -12,13 +12,12 @@ rule all:
         # ALL_PB_GRAPH_FILES,
         ALL_PB_SCEN_FILES[0:100],
         [file for file in ALL_JSON_LOCATION_FILES if "grid" not in file],
-        # "tors_instances/1b/carrousel_arrival_hard_0t_50n_3b_20g_0.0r_location.json",
 
 
 rule mapf_to_protobuf:
     input:
-        scenario_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r{scenario}.scen",
-        graph_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
+        scenario_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r{scenario}.scen",
+        graph_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
     params:
         graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
     output:
@@ -29,7 +28,7 @@ rule mapf_to_protobuf:
 
 rule mapf_to_protobuf_graph:
     input:
-        graph_file="ShuntYard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
+        graph_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
     output:
         graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
     shell:
@@ -46,9 +45,3 @@ rule protobuf_to_tors_location:
         location_file="tors_instances/{exp}/{graph}.0r_location.json",
     shell:
         "python {input.script} {input.location_file} {output.location_file} --length {params.length}"
-
-TO_COMBINE = [
-
-]
-
-rule merge_arrivals_and_departures:
