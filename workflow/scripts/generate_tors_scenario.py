@@ -7,8 +7,9 @@ from pathlib import Path
 
 import wonderwords
 
-if Path(__file__).parent.parent not in sys.path:
-    sys.path.append(str(Path(__file__).parent.parent / "protos"))
+if Path(__file__).parent.parent.parent not in sys.path:
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    sys.path.append(str(Path(__file__).parent.parent.parent / "protos"))
 else:
     sys.path.append("protos")
 
