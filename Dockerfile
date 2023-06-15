@@ -9,10 +9,13 @@ RUN micromamba install -y -n base -f /tmp/env.yaml && \
 
 ENV PATH /opt/conda/bin:$PATH
 
+COPY ./Shuntyard-Instance-Generator/environment.yml /tmp/env-generator.yml
+RUN mamba env create -f /tmp/env-generator.yml && \
+    mamba clean --all --yes
+
 WORKDIR /TORS
 COPY . .
-RUN conda config --set channel_priority strict && \
-    snakemake --cores all --use-conda --conda-create-envs-only --conda-frontend mamba
+RUN conda config --set channel_priority strict
 
 USER root
 RUN apt-get update && \
@@ -22,3 +25,5 @@ RUN apt-get update && \
     apt-get install -y apptainer && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# USER mambauser

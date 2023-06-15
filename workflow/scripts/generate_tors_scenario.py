@@ -1,8 +1,5 @@
 """Takes a TORS location json file and generates a scenario file for the location."""
-import argparse
-import json
 import logging
-import os
 import random
 import sys
 from dataclasses import dataclass
@@ -10,7 +7,10 @@ from pathlib import Path
 
 import wonderwords
 
-sys.path.append("protos")
+if Path(__file__).parent.parent not in sys.path:
+    sys.path.append(str(Path(__file__).parent.parent / "protos"))
+else:
+    sys.path.append("protos")
 
 from protos.Location_pb2 import Location, TrackPart, TrackPartType
 from protos.Scenario_pb2 import Scenario, Train, TrainUnit, ShuntingUnit

@@ -3,7 +3,11 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.append("protos")
+if Path(__file__).parent.parent.parent not in sys.path:
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    sys.path.append(str(Path(__file__).parent.parent.parent / "protos"))
+else:
+    sys.path.append("protos")
 
 from protos.agent_pb2 import Agent
 from protos.graph_pb2 import Graph, Node, NodeType

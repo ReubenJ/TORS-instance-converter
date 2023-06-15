@@ -1,21 +1,48 @@
 include: "rules/setup.smk"
 
 
+def get_json_filenames(wildcards):
+    checkpoints.create_instances.get()
+
+    all_scen_files = glob_wildcards(
+        "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{scenario_name}.scen"
+    )
+    all_graph_files = glob_wildcards(
+        "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph_name}.graph"
+    )
+    ALL_PB_SCEN_FILES = expand(
+        "mapf_protobuf_format_instances/{exp}/{layout}/{scenario_name}.scen.pb",
+        zip,
+        exp=all_scen_files.exp,
+        layout=all_scen_files.layout,
+        scenario_name=all_scen_files.scenario_name,
+    )
+    ALL_PB_GRAPH_FILES = expand(
+        "mapf_protobuf_format_instances/{exp}/{layout}/{graph_name}.graph.pb",
+        zip,
+        exp=all_graph_files.exp,
+        layout=all_graph_files.layout,
+        graph_name=all_graph_files.graph_name,
+    )
+    ALL_JSON_LOCATION_FILES = expand(
+        "tors_instances/{exp}/{graph_name}_location.json",
+        zip,
+        exp=all_graph_files.exp,
+        graph_name=all_graph_files.graph_name,
+    )
+
+    return [file for file in ALL_JSON_LOCATION_FILES if "grid" not in file]
+
+
 rule all:
     input:
-        # only request one, since they're all generated at the same time
-        COMPILED_PROTOS[0],
-        # Same with the instances, one script generates all of them
-        # this isn't really how snakemake is meant to be used, but these both just get us
-        # to a starting point where we can start using snakemake as it was intended
-        SCEN_FILE,
-        # ALL_PB_GRAPH_FILES,
-        ALL_PB_SCEN_FILES[0:100],
-        [file for file in ALL_JSON_LOCATION_FILES if "grid" not in file],
+        get_json_filenames,
 
 
 rule mapf_to_protobuf:
     input:
+        SCEN_FILE,
+        PROTO_FILES,
         scenario_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r{scenario}.scen",
         graph_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
     params:
@@ -28,6 +55,8 @@ rule mapf_to_protobuf:
 
 rule mapf_to_protobuf_graph:
     input:
+        SCEN_FILE,
+        PROTO_FILES,
         graph_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
     output:
         graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
@@ -37,6 +66,8 @@ rule mapf_to_protobuf_graph:
 
 rule protobuf_to_tors_location:
     input:
+        SCEN_FILE,
+        PROTO_FILES,
         location_file="mapf_protobuf_format_instances/{exp}/{graph}.0r/{graph}.0r.graph.pb",
         script="workflow/scripts/protobuf_to_tors_location.py",
     params:

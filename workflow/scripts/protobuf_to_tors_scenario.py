@@ -1,17 +1,19 @@
 import logging
+import sys
 from argparse import ArgumentParser
+from pathlib import Path
 
 import networkx as nx
 from google.protobuf.json_format import MessageToJson
-import sys
 
-sys.path.append("protos")
+if Path(__file__).parent.parent.parent not in sys.path:
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    sys.path.append(str(Path(__file__).parent.parent.parent / "protos"))
+else:
+    sys.path.append("protos")
 
 from protos.graph_pb2 import Graph
 from protos.Location_pb2 import Location, TrackPart, TrackPartType
-
-from pathlib import Path
-
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

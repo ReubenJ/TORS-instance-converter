@@ -7,34 +7,8 @@ PROTO_FILES = expand(
 )
 COMPILED_PROTOS = expand("protos/{name}_pb2.py", name=PROTOS.name)
 COMPILED_FOLDER = "protos"
-SCEN_FILE = "Shuntyard-Instance-Generator/quasi_real_instances/exp/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen"
 
-ALL_SCEN_FILES = glob_wildcards(
-    "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{scenario_name}.scen"
-)
-ALL_GRAPH_FILES = glob_wildcards(
-    "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph_name}.graph"
-)
-ALL_PB_SCEN_FILES = expand(
-    "mapf_protobuf_format_instances/{exp}/{layout}/{scenario_name}.scen.pb",
-    zip,
-    exp=ALL_SCEN_FILES.exp,
-    layout=ALL_SCEN_FILES.layout,
-    scenario_name=ALL_SCEN_FILES.scenario_name,
-)
-ALL_PB_GRAPH_FILES = expand(
-    "mapf_protobuf_format_instances/{exp}/{layout}/{graph_name}.graph.pb",
-    zip,
-    exp=ALL_GRAPH_FILES.exp,
-    layout=ALL_GRAPH_FILES.layout,
-    graph_name=ALL_GRAPH_FILES.graph_name,
-)
-ALL_JSON_LOCATION_FILES = expand(
-    "tors_instances/{exp}/{graph_name}_location.json",
-    zip,
-    exp=ALL_GRAPH_FILES.exp,
-    graph_name=ALL_GRAPH_FILES.graph_name,
-)
+SCEN_FILE = "Shuntyard-Instance-Generator/quasi_real_instances/exp/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen"
 
 
 rule copy_protos:
@@ -64,10 +38,12 @@ EXPERIMENTS, LAYOUTS, _, EXTS = glob_wildcards(
 
 checkpoint create_instances:
     conda:
-        "../../Shuntyard-Instance-Generator/environment.yml"
+        "shuntyard-instance-generator"
     input:
+        COMPILED_PROTOS[0],
         "Shuntyard-Instance-Generator/settings.ini",
     output:
-        "Shuntyard-Instance-Generator/quasi_real_instances/exp/1a/shuffleboard_arrival_0t_50n_3b_20g_0.0r/shuffleboard_arrival_0t_50n_3b_20g_0.0r_2a_0gs_0ss_0types_0.scen",
+        sentinel=SCEN_FILE,
+        all_files=directory("Shuntyard-Instance-Generator/quasi_real_instances"),
     shell:
         "cd Shuntyard-Instance-Generator && python main.py"
