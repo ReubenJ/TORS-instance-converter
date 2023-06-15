@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:1.4-jammy
+FROM --platform=amd64 mambaorg/micromamba:1.4-jammy
 
 LABEL org.opencontainers.image.source https://github.com/ReubenJ/TORS-instance-converter
 
@@ -13,3 +13,12 @@ WORKDIR /TORS
 COPY . .
 RUN conda config --set channel_priority strict && \
     snakemake --cores all --use-conda --conda-create-envs-only --conda-frontend mamba
+
+USER root
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:apptainer/ppa && \
+    apt-get update && \
+    apt-get install -y apptainer && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
