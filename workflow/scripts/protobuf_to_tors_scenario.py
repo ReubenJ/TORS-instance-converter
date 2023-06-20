@@ -3,8 +3,7 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
-import networkx as nx
-from google.protobuf.json_format import MessageToJson
+from google.protobuf.json_format import MessageToJson, Parse, MessageToDict, ParseDict
 
 if Path(__file__).parent.parent.parent not in sys.path:
     sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -12,161 +11,401 @@ if Path(__file__).parent.parent.parent not in sys.path:
 else:
     sys.path.append("protos")
 
-from protos.graph_pb2 import Graph
-from protos.Location_pb2 import Location, TrackPart, TrackPartType
+from protos.scenario_mapf_pb2 import Scenario as MAPFScenario
+from protos.agent_pb2 import Agent
+from protos.Location_pb2 import Location, TrackPartType, TrackPart
+from protos.TrainUnitTypes_pb2 import TrainUnitType, TrainUnitTypes
+from protos.Scenario_pb2 import Scenario, Train, TrainUnit
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig()
 logger = logging.getLogger(__name__)
 
 
-def create_track_parts(location_graph: nx.Graph, args):
-    tors_id_start = 1
+def has_bumper_connected(gate_track_part: TrackPart, location: Location) -> bool:
+    """
+    Returns True if the given gate track part has a bumper connected to it.
+    """
+    # Get all track parts connected to the gate track part
+    connected_track_part_ids = list(gate_track_part.aSide) + list(gate_track_part.bSide)
+    connected_track_parts = [
+        track_part
+        for track_part in location.trackParts
+        if track_part.id in connected_track_part_ids
+    ]
+    # Check if any of the connected track parts are bumpers
+    for connected_track_part in connected_track_parts:
+        if connected_track_part.type == TrackPartType.Bumper:
+            return True
+    return False
 
-    return (
-        TrackPart(
-            id=tors_id,
-            type=TrackPartType.RailRoad,
-            name=node,
-            aSide=[],
-            bSide=[],
-            length=args.length,
-            parkingAllowed=True,
-            sawMovementAllowed=True,
-            isElectrified=True,
+
+def get_connected_track_of_type(
+    track_part: TrackPart, location: Location, track_type: TrackPartType
+) -> list[TrackPart]:
+    """
+    Returns the track parts of the given type connected to the given track part.
+
+    Logs a warning if no track parts of the given type are found.
+    """
+    # Get all track parts connected to the given track part
+    connected_track_part_ids = list(track_part.aSide) + list(track_part.bSide)
+    connected_track_parts = [
+        track_part
+        for track_part in location.trackParts
+        if track_part.id in connected_track_part_ids
+    ]
+    # Filter out track parts that are not of the given type
+    connected_track_parts = [
+        track_part
+        for track_part in connected_track_parts
+        if track_part.type == track_type
+    ]
+    if len(connected_track_parts) < 1:
+        logger.warning(
+            f"Could not find any track parts of type {track_type} connected to track "
+            "part {track_part.name}"
         )
-        for tors_id, node in enumerate(location_graph.nodes, tors_id_start)
+    return connected_track_parts
+
+
+def find_track_part_by_name(track_part_name: str, location: Location) -> TrackPart:
+    """
+    Returns the track part with the given name in the given location.
+
+    Raises a ValueError if no track part with the given name is found.
+    """
+    for track_part in location.trackParts:
+        if track_part.name == track_part_name:
+            return track_part
+    raise ValueError(f"Could not find track part with name {track_part_name}")
+
+
+def add_train(
+    tors_scenario_dict: dict,
+    agent: Agent,
+    location: Location,
+    arrival_time: int,
+    departure_time: int,
+    total_time: int,
+) -> Train:
+    """
+    Adds a train to the given TORS scenario dictionary.
+    """
+    logger.debug(f"Adding train for agent {agent.name}.")
+    train_unit = TrainUnit(
+        id=str(agent.name),
+        typeDisplayName=agent.type,
     )
+    train = Train(
+        id=agent.name,
+        members=[train_unit],
+    )
+
+    # If either of the start or goal track parts are a gate, then we need to
+    # find the bumper and its corresponding railway TrackPart
+    if "g-" in agent.start_or_end_track:
+        # Get all gate TrackParts (all track parts with the names "g-1", "g-2", etc.")
+        gate_track_parts = [
+            track_part for track_part in location.trackParts if "g-" in track_part.name
+        ]
+        if len(gate_track_parts) < 1:
+            raise ValueError(
+                "Could not find any gate track parts when constructing train."
+            )
+        # Find the gate track with a bumper track part connected to it
+        connected_to_bumper = [
+            track_part
+            for track_part in gate_track_parts
+            if has_bumper_connected(track_part, location)
+        ]
+        if len(connected_to_bumper) != 1:
+            raise ValueError(
+                "Expected 1 gate track part connected to a bumper, "
+                f"but got {len(connected_to_bumper)}"
+            )
+        gate_track_part = connected_to_bumper[0]
+        bumper_track_parts = get_connected_track_of_type(
+            gate_track_part, location, TrackPartType.Bumper
+        )
+        if len(bumper_track_parts) != 1:
+            raise ValueError(
+                "Expected 1 bumper track part connected to start, "
+                f"but got {len(bumper_track_parts)}"
+            )
+
+    if "g-" in agent.start_or_end_track:
+        train.time = arrival_time
+        train.parkingTrackPart = gate_track_part.id
+        train.sideTrackPart = bumper_track_parts[0].id
+        tors_scenario_dict["in"].append(
+            MessageToDict(train, including_default_value_fields=True)
+        )
+    else:
+        train.time = 0
+        # Get the starting track part corresponding to the agent's start
+        parking_track_part = find_track_part_by_name(agent.start, location)
+        neighboring_track_parts = get_connected_track_of_type(
+            parking_track_part, location, TrackPartType.RailRoad
+        )
+        train.parkingTrackPart = parking_track_part.id
+        train.sideTrackPart = neighboring_track_parts[0].id
+        tors_scenario_dict["inStanding"].append(
+            MessageToDict(train, including_default_value_fields=True)
+        )
+
+    if "g-" in agent.start_or_end_track:
+        train.time = departure_time
+        train.parkingTrackPart = gate_track_part.id
+        train.sideTrackPart = bumper_track_parts[0].id
+        tors_scenario_dict["out"].append(
+            MessageToDict(train, including_default_value_fields=True)
+        )
+    else:
+        train.time = total_time
+        # Get the goal track part corresponding to the agent's goal
+        parking_track_part = find_track_part_by_name(agent.goal, location)
+        neighboring_track_parts = get_connected_track_of_type(
+            parking_track_part, location, TrackPartType.RailRoad
+        )
+        train.parkingTrackPart = parking_track_part.id
+        train.sideTrackPart = neighboring_track_parts[0].id
+        tors_scenario_dict["outStanding"].append(
+            MessageToDict(train, including_default_value_fields=True)
+        )
+
+    return tors_scenario_dict
+
+
+def calculate_arrival_times(
+    mapf_scenario: MAPFScenario,
+    time_between_trains: int,
+) -> list[int]:
+    """
+    Calculates the arrival times for the given MAPF scenario.
+
+    The arrival order of the agents is determined by their starting point.
+    There are (usually) multiple gate tracks, and the agents are ordered by
+    the gate track they start at. If one agent starts at gate track g-1 and another
+    starts at gate track g-2, then the agent starting at g-2 will arrive first.
+
+    The arrival times are calculated by adding some multiple of the time between
+    trains to the start time of the scenario (0).
+
+    Example:
+    - Start time: 0
+    - Time between trains: 100
+    - Trains and their start tracks:
+        - Agent 1: g-1
+        - Agent 2: g-3
+        - Agent 3: b-1-p-5
+        - Agent 4: g-2
+
+    - Arrival times:
+        - Agent 1: 300
+        - Agent 2: 100
+        - Agent 3: 0
+        - Agent 4: 200
+
+    Returns:
+        A list of arrival times for each agent in the given MAPF scenario.
+    """
+    logger.debug("Calculating arrival times.")
+    arrival_times = {}
+    gate_agents = [
+        agent
+        for agent in mapf_scenario.incoming_agents
+        if "g-" in agent.start_or_end_track
+    ]
+    gate_agents.sort(key=lambda agent: int(agent.start_or_end_track.split("-")[1]))
+    for i, agent in enumerate(gate_agents):
+        arrival_times[agent.name] = (i + 1) * time_between_trains
+    non_gate_agents = [
+        agent
+        for agent in mapf_scenario.incoming_agents
+        if "g-" not in agent.start_or_end_track
+    ]
+    for i, agent in enumerate(non_gate_agents):
+        arrival_times[agent.name] = 0
+
+    logger.debug(f"Arrival times: {arrival_times}")
+
+    arrival_times_list = []
+    for agent in mapf_scenario.incoming_agents:
+        arrival_times_list.append(arrival_times[agent.name])
+    
+    return arrival_times_list
+
+
+def calculate_departure_times(
+    mapf_scenario: MAPFScenario,
+    time_between_trains: int,
+    total_time: int,
+) -> list[int]:
+    """
+    Calculates the departure times for the given MAPF scenario.
+
+    The departure order of the agents is determined by their goal point.
+    There are (usually) multiple gate tracks, and the agents are ordered by
+    the gate track they end at. If one agent ends at gate track g-1 and another
+    ends at gate track g-2, then the agent ending at g-2 will depart last.
+
+    The departure times are calculated by subtracting some multiple of the time between
+    trains from the total time.
+
+    Example:
+    - Total time: 1000
+    - Time between trains: 100
+    - Trains and their goal tracks:
+        - Agent 1: g-1
+        - Agent 2: g-3
+        - Agent 3: b-1-p-5
+        - Agent 4: g-2
+
+    - Departure times:
+        - Agent 1: 1000 - 2 * 100 = 800
+        - Agent 2: 1000 - 1 * 100 = 900
+        - Agent 3: 1000
+        - Agent 4: 1000 - 3 * 100 = 700
+
+    Return:
+    - A list of departure times, where the index of the departure time corresponds
+      to the index of the agent in the MAPF scenario.
+    """
+    logger.debug("Calculating departure times.")
+    departure_times = {}
+    gate_agents = [
+        agent
+        for agent in mapf_scenario.outgoing_agents
+        if "g-" in agent.start_or_end_track
+    ]
+    gate_agents.sort(key=lambda agent: int(agent.start_or_end_track.split("-")[1]))
+    for i, agent in enumerate(gate_agents):
+        departure_times[agent.name] = total_time - (i + 1) * time_between_trains
+    non_gate_agents = [
+        agent
+        for agent in mapf_scenario.outgoing_agents
+        if "g-" not in agent.start_or_end_track
+    ]
+    for i, agent in enumerate(non_gate_agents):
+        departure_times[agent.name] = total_time
+
+    logger.debug(f"Departure times: {departure_times}")
+
+    departure_times_list = []
+    for agent in mapf_scenario.outgoing_agents:
+        departure_times_list.append(departure_times[agent.name])
+
+    return departure_times_list
 
 
 def main():
     parser = ArgumentParser(
-        description="Converts .graph.pb files to TORS protobuf format."
+        description="Converts .scen.pb files to TORS protobuf/json format."
     )
-    parser.add_argument("graph", help="The .graph.pb file to convert.")
+    parser.add_argument("scenario", help="The .scen.pb file to convert.")
+    parser.add_argument("location", help="The corresponding location .json file.")
     parser.add_argument("output", help="The output file to write to.", type=Path)
     parser.add_argument(
-        "--length", help="The length of the track parts.", default=100, type=int
+        "--length", help="The length of the trains.", default=100, type=int
+    )
+    parser.add_argument(
+        "--n-carriages", help="The number of carriages per train.", default=1, type=int
+    )
+    parser.add_argument(
+        "--time-between-trains", help="The time between trains.", default=100, type=int
+    )
+    parser.add_argument(
+        "--total-time", help="The total time of the scenario.", default=None, type=int
     )
     args = parser.parse_args()
 
-    graph_path = args.graph
+    scenario_path: Path = args.scenario
+    location_path: Path = args.location
+    output_path: Path = args.output
+    n_carriages: int = args.n_carriages
+    time_between_trains: int = args.time_between_trains
+    length: int = args.length
+    total_time: int = args.total_time
 
-    with open(graph_path, "rb") as graph_file:
-        mapf_graph = Graph()
-        mapf_graph.ParseFromString(graph_file.read())
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    tors_location = Location()
+    # Check if the total time is set, if not, calculate it, if it is, check if it is
+    # possible to fit all the trains in the scenario in the given time
+    with open(scenario_path, "rb") as graph_file:
+        mapf_scenario = MAPFScenario()
+        mapf_scenario.ParseFromString(graph_file.read())
+    # Need to multiply by 2 because we need to account for the inbound and outbound
+    rough_total_time = (time_between_trains * len(mapf_scenario.incoming_agents) * 2) + 500
+    if total_time is None:
+        total_time = rough_total_time
+    elif total_time < rough_total_time:
+        raise ValueError(
+            f"Total time is set to {total_time}, but the scenario probably needs at "
+            "least {rough_total_time} time units to complete."
+        )
 
-    adjacency_list = [" ".join([node.id, *node.neighbors]) for node in mapf_graph.nodes]
-    location_graph = nx.adjlist.parse_adjlist(
-        adjacency_list, nodetype=str, create_using=nx.Graph
-    )
+    with open(scenario_path, "rb") as graph_file:
+        mapf_scenario = MAPFScenario()
+        mapf_scenario.ParseFromString(graph_file.read())
 
-    location_graph = remove_extra_gate_nodes(location_graph)
+    with open(location_path, "r") as location_file:
+        location = Location()
+        Parse(location_file.read(), location)
 
-    location_graph = reduce_degree(location_graph)
-
-    track_parts = create_track_parts(location_graph, args)
-    tors_location.trackParts.extend(track_parts)
-
-    names = [track.name for track in tors_location.trackParts]
-    # Add the edges to the track parts
-    for edge in location_graph.edges:
-        first_track = tors_location.trackParts[names.index(edge[0])]
-        second_track = tors_location.trackParts[names.index(edge[1])]
-        if len(first_track.aSide) == 0:
-            first_track.aSide.append(second_track.id)
-        else:
-            first_track.bSide.append(second_track.id)
-        if len(second_track.aSide) == 0:
-            second_track.aSide.append(first_track.id)
-        else:
-            second_track.bSide.append(first_track.id)
-
-
-    for track in tors_location.trackParts:
-        process_switch(track, tors_location)
-
-    # Add an exit bumper if carrousel style
-    # Get the ends of the branches
-    # Each branch track is named "b-<branch number>-p-<position in branch>"
-    # The end of each branch number is the track with the highest position in the branch
-    # First get the number of branches
-    branch_numbers = set(
+    # Create all the train unit types
+    tors_train_unit_types = TrainUnitTypes()
+    tors_train_unit_types.types.extend(
         [
-            track.name.split("-")[1]
-            for track in tors_location.trackParts
-            if track.name.startswith("b-")
+            TrainUnitType(
+                displayName=agent.type,
+                carriages=n_carriages,
+                length=n_carriages * length,
+                combineDuration=180,
+                splitDuration=120,
+                backNormTime=120,
+                backAdditionTime=16,
+                travelSpeed=0,
+                startUpTime=0,
+                typePrefix=str(agent.type),
+                needsLoco=False,
+                needsElectricity=False,
+            )
+            for agent in mapf_scenario.incoming_agents
         ]
     )
-    logger.debug(f"Branch numbers: {branch_numbers}")
-    # Then get the end of each branch
-    branch_ends = [
-        max(
-            [
-                track
-                for track in tors_location.trackParts
-                if track.name.startswith(f"b-{branch_number}")
-            ],
-            key=lambda track: int(track.name.split("-")[-1]),
-        )
-        for branch_number in branch_numbers
-    ]
-    logger.debug(f"Branch ends: {branch_ends}")
-    end_of_lowest_branch = min(
-        branch_ends, key=lambda track: int(track.name.split("-")[-1])
-    )
-    # Turn the end of the lowest branch into a switch, add a railroad track to the other
-    # side of the switch, and add a bumper track to the end of the railroad track
-    end_of_lowest_branch.type = TrackPartType.Switch
-    # Create a new railroad track part to connect to the switch
-    new_railroad_track = TrackPart(
-        id=len(tors_location.trackParts) + 1,
-        type=TrackPartType.RailRoad,
-        name=f"end-{end_of_lowest_branch.name}",
-        aSide=[end_of_lowest_branch.id],
-        bSide=[],
-        length=args.length,
-        parkingAllowed=True,
-        sawMovementAllowed=True,
-        isElectrified=True,
-    )
-    # The (now switch) at the end of the lowest should have the single neighbor
-    # side of the switch be the new railroad track part and the double neighbor
-    # side of the switch be the end of the lowest branch and the other railroad
-    # track part from the second to last branch
-    current_a = end_of_lowest_branch.aSide.pop()
-    end_of_lowest_branch.aSide.append(new_railroad_track.id)
-    end_of_lowest_branch.bSide.append(current_a)
-    tors_location.trackParts.append(new_railroad_track)
 
-    # Add bumper tracks to track parts with only one neighbor
-    # Get trackParts with only one neighbor
-    one_neighbor_tracks = [
-        track for track in tors_location.trackParts if len(track.bSide) == 0
-    ]
-    for track in one_neighbor_tracks:
-        # Create a new bumper track part
-        bumper_track = TrackPart(
-            id=len(tors_location.trackParts) + 1,
-            type=TrackPartType.Bumper,
-            name=f"bumper-{track.name}",
-            aSide=[track.id],
-            bSide=[],
-            length=0,
-            parkingAllowed=False,
-            sawMovementAllowed=False,
-            isElectrified=False,
+    tors_scenario = Scenario()
+    for unit_type in tors_train_unit_types.types:
+        tors_scenario.trainUnitTypes.append(unit_type)
+    # Convert scenario to dictionary so we can add the incoming trains
+    # because the protobuf definition uses the field name "in" which is a reserved
+    # keyword in python
+    tors_scenario_dict = MessageToDict(
+        tors_scenario, including_default_value_fields=True
+    )
+
+    arrival_times = calculate_arrival_times(mapf_scenario, time_between_trains)
+    departure_times = calculate_departure_times(
+        mapf_scenario, time_between_trains, total_time
+    )
+    time_pairs = zip(arrival_times, departure_times)
+
+    # Enumerate over the agents and their time pairs
+    for agent, (arrival_time, departure_time) in zip(mapf_scenario.incoming_agents, time_pairs):
+        tors_scenario_dict = add_train(
+            tors_scenario_dict,
+            agent,
+            location,
+            arrival_time,
+            departure_time,
+            total_time,
         )
-        # Add the bumper track to the bSide of the track
-        track.bSide.append(bumper_track.id)
-        # Add the bumper track to the location
-        tors_location.trackParts.append(bumper_track)
+    tors_scenario = ParseDict(tors_scenario_dict, Scenario())
 
     # write the location to a file as json
-    with open(args.output, "w") as location_file:
-        location_file.write(
-            MessageToJson(tors_location, including_default_value_fields=True)
+    with open(output_path, "w") as output_file:
+        output_file.write(
+            MessageToJson(tors_scenario, including_default_value_fields=True)
         )
 
 

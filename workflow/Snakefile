@@ -1,56 +1,52 @@
 include: "rules/setup.smk"
 
 
-def get_json_filenames(wildcards):
-    checkpoints.create_instances.get()
+all_scen_files = glob_wildcards(
+    "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}.0r/{graph_name}.0r{scenario}.scen"
+)
+all_graph_files = glob_wildcards(
+    "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph_name}.graph"
+)
+ALL_PB_SCENARIO_FILES = expand(
+    "mapf_protobuf_format_instances/{exp}/{layout}.0r/{graph_name}.0r{scenario}.scen.pb",
+    zip,
+    exp=all_scen_files.exp,
+    layout=all_scen_files.layout,
+    graph_name=all_scen_files.graph_name,
+    scenario=all_scen_files.scenario,
+)
+ALL_JSON_LOCATION_FILES = expand(
+    "tors_instances/{exp}/{graph_name}_location.json",
+    zip,
+    exp=all_graph_files.exp,
+    graph_name=all_graph_files.graph_name,
+)
+ALL_JSON_SCENARIO_FILES = expand(
+    "tors_instances/{exp}/{layout}.0r/{graph_name}.0r{scenario}_scenario.json",
+    zip,
+    exp=all_scen_files.exp,
+    layout=all_scen_files.layout,
+    graph_name=all_scen_files.graph_name,
+    scenario=all_scen_files.scenario,
+)
 
-    all_scen_files = glob_wildcards(
-        "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{scenario_name}.scen"
-    )
-    all_graph_files = glob_wildcards(
-        "Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph_name}.graph"
-    )
-    ALL_PB_SCEN_FILES = expand(
-        "mapf_protobuf_format_instances/{exp}/{layout}/{scenario_name}.scen.pb",
-        zip,
-        exp=all_scen_files.exp,
-        layout=all_scen_files.layout,
-        scenario_name=all_scen_files.scenario_name,
-    )
-    ALL_PB_GRAPH_FILES = expand(
-        "mapf_protobuf_format_instances/{exp}/{layout}/{graph_name}.graph.pb",
-        zip,
-        exp=all_graph_files.exp,
-        layout=all_graph_files.layout,
-        graph_name=all_graph_files.graph_name,
-    )
-    ALL_JSON_LOCATION_FILES = expand(
-        "tors_instances/{exp}/{graph_name}_location.json",
-        zip,
-        exp=all_graph_files.exp,
-        graph_name=all_graph_files.graph_name,
-    )
+
+def get_json_location_filenames(wildcards):
+    checkpoints.create_instances.get()
 
     return [file for file in ALL_JSON_LOCATION_FILES if "grid" not in file]
 
 
+def get_json_scenario_filenames(wildcards):
+    checkpoints.create_instances.get()
+
+    return [file for file in ALL_JSON_SCENARIO_FILES if "grid" not in file]
+
+
 rule all:
     input:
-        get_json_filenames,
-
-
-rule mapf_to_protobuf:
-    input:
-        SCEN_FILE,
-        PROTO_FILES,
-        scenario_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r{scenario}.scen",
-        graph_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}/{graph}.0r.graph",
-    params:
-        graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
-    output:
-        scenario_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r{scenario}.scen.pb",
-    shell:
-        "python workflow/scripts/mapf_to_protobuf.py {input.scenario_file} {input.graph_file} {output.scenario_output_file} {params.graph_output_file}"
+        get_json_location_filenames,
+        get_json_scenario_filenames,
 
 
 rule mapf_to_protobuf_graph:
@@ -62,6 +58,17 @@ rule mapf_to_protobuf_graph:
         graph_output_file="mapf_protobuf_format_instances/{exp}/{layout}/{graph}.0r.graph.pb",
     shell:
         "python workflow/scripts/mapf_to_protobuf_graph.py {input.graph_file} {output.graph_output_file}"
+
+
+rule mapf_to_protobuf_scenario:
+    input:
+        SCEN_FILE,
+        PROTO_FILES,
+        scenario_file="Shuntyard-Instance-Generator/quasi_real_instances/exp/{exp}/{layout}.0r/{graph}.0r{scenario}.scen",
+    output:
+        scenario_output_file="mapf_protobuf_format_instances/{exp}/{layout}.0r/{graph}.0r{scenario}.scen.pb",
+    shell:
+        "python workflow/scripts/mapf_to_protobuf_scenario.py {input.scenario_file} {output.scenario_output_file}"
 
 
 rule protobuf_to_tors_location:
@@ -76,3 +83,16 @@ rule protobuf_to_tors_location:
         location_file="tors_instances/{exp}/{graph}.0r_location.json",
     shell:
         "python {input.script} {input.location_file} {output.location_file} --length {params.length}"
+
+
+rule protobuf_to_tors_scenario:
+    input:
+        SCEN_FILE,
+        PROTO_FILES,
+        scenario_file="mapf_protobuf_format_instances/{exp}/{layout}.0r/{graph}.0r{scenario}.scen.pb",
+        location_file="tors_instances/{exp}/{graph}.0r_location.json",
+        script="workflow/scripts/protobuf_to_tors_scenario.py",
+    output:
+        scenario_file="tors_instances/{exp}/{layout}.0r/{graph}.0r{scenario}_scenario.json",
+    shell:
+        "python {input.script} {input.scenario_file} {input.location_file} {output.scenario_file}"
