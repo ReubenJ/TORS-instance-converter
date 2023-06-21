@@ -17,7 +17,7 @@ from protos.Location_pb2 import Location, TrackPartType, TrackPart
 from protos.TrainUnitTypes_pb2 import TrainUnitType, TrainUnitTypes
 from protos.Scenario_pb2 import Scenario, Train, TrainUnit
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -84,9 +84,8 @@ def add_train(
     tors_scenario_dict: dict,
     agent: Agent,
     location: Location,
-    arrival_time: int,
-    departure_time: int,
-    total_time: int,
+    time: int,
+    incoming: str,
 ) -> Train:
     """
     Adds a train to the given TORS scenario dictionary.
@@ -132,44 +131,25 @@ def add_train(
                 "Expected 1 bumper track part connected to start, "
                 f"but got {len(bumper_track_parts)}"
             )
+    train.time = time
+    key_to_place_train_in_for_gate = "in" if incoming else "out"
+    key_to_place_train_in_for_non_gate = "inStanding" if incoming else "outStanding"
 
     if "g-" in agent.start_or_end_track:
-        train.time = arrival_time
         train.parkingTrackPart = gate_track_part.id
         train.sideTrackPart = bumper_track_parts[0].id
-        tors_scenario_dict["in"].append(
+        tors_scenario_dict[key_to_place_train_in_for_gate].append(
             MessageToDict(train, including_default_value_fields=True)
         )
     else:
-        train.time = 0
         # Get the starting track part corresponding to the agent's start
-        parking_track_part = find_track_part_by_name(agent.start, location)
+        parking_track_part = find_track_part_by_name(agent.start_or_end_track, location)
         neighboring_track_parts = get_connected_track_of_type(
             parking_track_part, location, TrackPartType.RailRoad
         )
         train.parkingTrackPart = parking_track_part.id
         train.sideTrackPart = neighboring_track_parts[0].id
-        tors_scenario_dict["inStanding"].append(
-            MessageToDict(train, including_default_value_fields=True)
-        )
-
-    if "g-" in agent.start_or_end_track:
-        train.time = departure_time
-        train.parkingTrackPart = gate_track_part.id
-        train.sideTrackPart = bumper_track_parts[0].id
-        tors_scenario_dict["out"].append(
-            MessageToDict(train, including_default_value_fields=True)
-        )
-    else:
-        train.time = total_time
-        # Get the goal track part corresponding to the agent's goal
-        parking_track_part = find_track_part_by_name(agent.goal, location)
-        neighboring_track_parts = get_connected_track_of_type(
-            parking_track_part, location, TrackPartType.RailRoad
-        )
-        train.parkingTrackPart = parking_track_part.id
-        train.sideTrackPart = neighboring_track_parts[0].id
-        tors_scenario_dict["outStanding"].append(
+        tors_scenario_dict[key_to_place_train_in_for_non_gate].append(
             MessageToDict(train, including_default_value_fields=True)
         )
 
@@ -232,7 +212,7 @@ def calculate_arrival_times(
     arrival_times_list = []
     for agent in mapf_scenario.incoming_agents:
         arrival_times_list.append(arrival_times[agent.name])
-    
+
     return arrival_times_list
 
 
@@ -271,29 +251,28 @@ def calculate_departure_times(
     - A list of departure times, where the index of the departure time corresponds
       to the index of the agent in the MAPF scenario.
     """
-    logger.debug("Calculating departure times.")
-    departure_times = {}
-    gate_agents = [
-        agent
-        for agent in mapf_scenario.outgoing_agents
-        if "g-" in agent.start_or_end_track
-    ]
-    gate_agents.sort(key=lambda agent: int(agent.start_or_end_track.split("-")[1]))
-    for i, agent in enumerate(gate_agents):
-        departure_times[agent.name] = total_time - (i + 1) * time_between_trains
-    non_gate_agents = [
-        agent
-        for agent in mapf_scenario.outgoing_agents
-        if "g-" not in agent.start_or_end_track
-    ]
-    for i, agent in enumerate(non_gate_agents):
-        departure_times[agent.name] = total_time
-
+    logger.debug(f"Calculating departure times. Total time: {total_time}")
+    sort_order = sorted(
+        range(len(mapf_scenario.outgoing_agents)),
+        key=lambda k: (
+            mapf_scenario.outgoing_agents[k].start_or_end_track.split("-")[1]
+        ),
+    )
+    logger.debug(f"Sort order: {sort_order}")
+    departure_times = []
+    for i, agent in enumerate(mapf_scenario.outgoing_agents):
+        if "g-" in agent.start_or_end_track:
+            logger.debug(f"Agent {agent.name} is a gate agent.")
+            departure_times.append(total_time - (i + 1) * time_between_trains)
+        else:
+            logger.debug(f"Agent {agent.name} is not a gate agent.")
+            departure_times.append(total_time)
+    
     logger.debug(f"Departure times: {departure_times}")
 
     departure_times_list = []
-    for agent in mapf_scenario.outgoing_agents:
-        departure_times_list.append(departure_times[agent.name])
+    for i in sort_order:
+        departure_times_list.append(departure_times[i])
 
     return departure_times_list
 
@@ -335,7 +314,9 @@ def main():
         mapf_scenario = MAPFScenario()
         mapf_scenario.ParseFromString(graph_file.read())
     # Need to multiply by 2 because we need to account for the inbound and outbound
-    rough_total_time = (time_between_trains * len(mapf_scenario.incoming_agents) * 2) + 500
+    rough_total_time = (
+        time_between_trains * len(mapf_scenario.incoming_agents) * 2
+    ) + 500
     if total_time is None:
         total_time = rough_total_time
     elif total_time < rough_total_time:
@@ -377,6 +358,7 @@ def main():
     tors_scenario = Scenario()
     for unit_type in tors_train_unit_types.types:
         tors_scenario.trainUnitTypes.append(unit_type)
+    tors_scenario.endTime = total_time
     # Convert scenario to dictionary so we can add the incoming trains
     # because the protobuf definition uses the field name "in" which is a reserved
     # keyword in python
@@ -388,17 +370,22 @@ def main():
     departure_times = calculate_departure_times(
         mapf_scenario, time_between_trains, total_time
     )
-    time_pairs = zip(arrival_times, departure_times)
 
-    # Enumerate over the agents and their time pairs
-    for agent, (arrival_time, departure_time) in zip(mapf_scenario.incoming_agents, time_pairs):
+    for agent, arrival_time in zip(mapf_scenario.incoming_agents, arrival_times):
         tors_scenario_dict = add_train(
             tors_scenario_dict,
             agent,
             location,
             arrival_time,
+            incoming=True,
+        )
+    for agent, departure_time in zip(mapf_scenario.outgoing_agents, departure_times):
+        tors_scenario_dict = add_train(
+            tors_scenario_dict,
+            agent,
+            location,
             departure_time,
-            total_time,
+            incoming=False,
         )
     tors_scenario = ParseDict(tors_scenario_dict, Scenario())
 

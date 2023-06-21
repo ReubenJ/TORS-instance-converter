@@ -17,7 +17,7 @@ from protos.graph_pb2 import Graph
 from protos.Location_pb2 import Location, TrackPart, TrackPartType
 
 
-logging.basicConfig(level=logging.WARN)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +70,7 @@ def remove_extra_gate_nodes(graph: nx.Graph):
         for node in gate_nodes[:-2]:
             graph.remove_node(node)
     else:
-        logger.warning(
+        raise ValueError(
             "There are less than two gate nodes in the graph. "
             "This might cause errors in the TORS simulator."
         )
@@ -192,29 +192,33 @@ def main():
     end_of_lowest_branch = min(
         branch_ends, key=lambda track: int(track.name.split("-")[-1])
     )
-    # Turn the end of the lowest branch into a switch, add a railroad track to the other
-    # side of the switch, and add a bumper track to the end of the railroad track
-    end_of_lowest_branch.type = TrackPartType.Switch
-    # Create a new railroad track part to connect to the switch
-    new_railroad_track = TrackPart(
-        id=len(tors_location.trackParts) + 1,
-        type=TrackPartType.RailRoad,
-        name=f"end-{end_of_lowest_branch.name}",
-        aSide=[end_of_lowest_branch.id],
-        bSide=[],
-        length=args.length,
-        parkingAllowed=True,
-        sawMovementAllowed=True,
-        isElectrified=True,
-    )
-    # The (now switch) at the end of the lowest should have the single neighbor
-    # side of the switch be the new railroad track part and the double neighbor
-    # side of the switch be the end of the lowest branch and the other railroad
-    # track part from the second to last branch
-    current_a = end_of_lowest_branch.aSide.pop()
-    end_of_lowest_branch.aSide.append(new_railroad_track.id)
-    end_of_lowest_branch.bSide.append(current_a)
-    tors_location.trackParts.append(new_railroad_track)
+
+    # Only add an exit bumper if the end of the lowest branch is connected to other
+    # tracks (meaning it's a carrousel style yard)
+    if end_of_lowest_branch.aSide != [] and end_of_lowest_branch.bSide != []:
+        # Turn the end of the lowest branch into a switch, add a railroad track to the
+        # other side of the switch, and add a bumper track to the end of the railroad track
+        end_of_lowest_branch.type = TrackPartType.Switch
+        # Create a new railroad track part to connect to the switch
+        new_railroad_track = TrackPart(
+            id=len(tors_location.trackParts) + 1,
+            type=TrackPartType.RailRoad,
+            name=f"end-{end_of_lowest_branch.name}",
+            aSide=[end_of_lowest_branch.id],
+            bSide=[],
+            length=args.length,
+            parkingAllowed=True,
+            sawMovementAllowed=True,
+            isElectrified=True,
+        )
+        # The (now switch) at the end of the lowest should have the single neighbor
+        # side of the switch be the new railroad track part and the double neighbor
+        # side of the switch be the end of the lowest branch and the other railroad
+        # track part from the second to last branch
+        current_a = end_of_lowest_branch.aSide.pop()
+        end_of_lowest_branch.aSide.append(new_railroad_track.id)
+        end_of_lowest_branch.bSide.append(current_a)
+        tors_location.trackParts.append(new_railroad_track)
 
     # Add bumper tracks to track parts with only one neighbor
     # Get trackParts with only one neighbor
