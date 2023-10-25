@@ -10,7 +10,7 @@ This project's environment is managed using [`devbox`](https://www.jetpack.io/de
  To create/convert the instances, run the following twice:
 
  ```shell
- snakmake --cores all
+ snakemake --cores all
  ```
 
  Alternatively, you can use fewer cores (ex: `--cores 2`). The first time you run the `snakemake` command should create a directory called `mapf_protobuf_format_instances`, the second run should create a directory of the converted TORS instances called `tors_instances`.
