@@ -37,10 +37,6 @@ EXPERIMENTS, LAYOUTS, _, EXTS = glob_wildcards(
 
 
 checkpoint create_instances:
-    conda:
-        "shuntyard-instance-generator"
-    container:
-        "docker://ghcr.io/reubenj/tors-instance-converter:0.1.3"
     input:
         COMPILED_PROTOS[0],
         "Shuntyard-Instance-Generator/settings.ini",

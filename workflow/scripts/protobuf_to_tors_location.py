@@ -17,7 +17,7 @@ from protos.graph_pb2 import Graph
 from protos.Location_pb2 import Location, TrackPart, TrackPartType
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

@@ -1,9 +1,0 @@
-# ignore everything
-*
-# but not these files...
-!environment.yml
-!workflow/*
-!cTORS/*
-!Shuntyard-Instance-Generator/*
-# do ignore the quasi real instances though
-Shuntyard-Instance-Generator/quasi_real_instances/*

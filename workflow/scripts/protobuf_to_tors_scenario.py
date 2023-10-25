@@ -17,7 +17,7 @@ from protos.Location_pb2 import Location, TrackPartType, TrackPart
 from protos.TrainUnitTypes_pb2 import TrainUnitType, TrainUnitTypes
 from protos.Scenario_pb2 import Scenario, Train, TrainUnit
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

@@ -163,3 +163,4 @@ cython_debug/
 protos
 mapf_protobuf_format_instances
 tors_instances
+.vscode

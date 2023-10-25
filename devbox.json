@@ -1,0 +1,27 @@
+{
+  "packages": [
+    "stdenv@latest",
+    "ruff@latest",
+    "protobuf@latest",
+    "graphviz@latest",
+    "snakemake@latest",
+    "python@3.10",
+    "python310Packages.networkx@latest",
+    "python310Packages.ipykernel@latest",
+    "python310Packages.matplotlib@latest",
+    "python310Packages.scipy@latest",
+    "python310Packages.virtualenv@latest",
+    "python310Packages.numpy@latest",
+    "python310Packages.protobuf@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to devbox!' > /dev/null"
+    ],
+    "scripts": {
+      "test": [
+        "echo \"Error: no test specified\" && exit 1"
+      ]
+    }
+  }
+}
